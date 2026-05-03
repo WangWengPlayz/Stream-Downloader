@@ -1,16 +1,25 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { ttdl, ytmp3, ytmp4, ytsearch, igdl, fbdl } from "ruhend-scraper";
+import { createRequire } from "module";
+
+const _require = createRequire(import.meta.url);
+const {
+  alldownV2,
+  tikdown,
+  ytdown,
+  twitterdown,
+  instagram,
+} = _require("nayan-media-downloaders") as typeof import("nayan-media-downloaders");
 
 const router: IRouter = Router();
 
 function detectPlatform(
-  input: string,
-): "youtube" | "tiktok" | "instagram" | "facebook" | "search" {
-  if (/youtube\.com|youtu\.be/i.test(input)) return "youtube";
-  if (/tiktok\.com/i.test(input)) return "tiktok";
-  if (/instagram\.com/i.test(input)) return "instagram";
-  if (/facebook\.com|fb\.watch/i.test(input)) return "facebook";
-  return "search";
+  url: string,
+): "youtube" | "tiktok" | "twitter" | "instagram" | "universal" {
+  if (/youtube\.com|youtu\.be/i.test(url)) return "youtube";
+  if (/tiktok\.com/i.test(url)) return "tiktok";
+  if (/twitter\.com|x\.com/i.test(url)) return "twitter";
+  if (/instagram\.com/i.test(url)) return "instagram";
+  return "universal";
 }
 
 router.get("/v1/q", async (req: Request, res: Response) => {
@@ -19,151 +28,163 @@ router.get("/v1/q", async (req: Request, res: Response) => {
   if (!query || !query.trim()) {
     res.status(400).json({
       success: false,
-      error: "Missing query. Use: /api/v1/q?=(url or title)",
+      error: "Missing query. Usage: /api/v1/q?=(url)",
+      supported_platforms: [
+        "YouTube (youtube.com / youtu.be)",
+        "TikTok (tiktok.com)",
+        "Twitter / X (twitter.com / x.com)",
+        "Instagram (instagram.com)",
+        "Facebook",
+        "Pinterest",
+        "CapCut",
+        "Likee",
+        "Threads",
+        "Google Drive",
+      ],
     });
     return;
   }
 
-  const input = query.trim();
-  const platform = detectPlatform(input);
+  const url = query.trim();
+  const platform = detectPlatform(url);
 
   try {
-    if (platform === "youtube") {
-      const [mp4Data, mp3Data] = await Promise.all([
-        ytmp4(input).catch(() => null),
-        ytmp3(input).catch(() => null),
-      ]);
-
-      const base = mp4Data ?? mp3Data;
-
-      res.json({
-        success: true,
-        platform: "youtube",
-        info: {
-          title: base?.title ?? null,
-          author: base?.author ?? null,
-          description: base?.description ?? null,
-          duration: base?.duration ?? null,
-          views: base?.views ?? null,
-          uploaded: base?.upload ?? null,
-          thumbnail: base?.thumbnail ?? null,
-        },
-        media: {
-          mp4: mp4Data
-            ? { url: mp4Data.video ?? mp4Data.audio ?? null, quality: "360p" }
-            : null,
-          mp3: mp3Data ? { url: mp3Data.audio ?? null } : null,
-        },
-      });
-      return;
-    }
-
+    // TikTok — rich metadata: views, plays, shares, comments, mp4 + mp3
     if (platform === "tiktok") {
-      const data = await ttdl(input);
+      const result = await tikdown(url);
 
+      if (!result.status || !result.data) {
+        res.status(502).json({ success: false, error: "TikTok fetch failed", url });
+        return;
+      }
+
+      const d = result.data;
       res.json({
         success: true,
         platform: "tiktok",
         info: {
-          title: data.title ?? null,
-          author: data.author ?? null,
-          username: data.username ?? null,
-          published: data.published ?? null,
-          likes: data.like ?? null,
-          comments: data.comment ?? null,
-          shares: data.share ?? null,
-          views: data.views ?? null,
-          bookmarks: data.bookmark ?? null,
-          thumbnail: data.cover ?? null,
-          profilePicture: data.profilePicture ?? null,
+          title: d.title ?? null,
+          author: d.author?.nickname ?? null,
+          username: d.author?.unique_id ?? null,
+          avatar: d.author?.avatar ?? null,
+          duration: d.duration ?? null,
+          views: d.view ?? null,
+          plays: d.play ?? null,
+          comments: d.comment ?? null,
+          shares: d.share ?? null,
+          downloads: d.download ?? null,
         },
         media: {
-          mp4: data.video
-            ? {
-                url: Array.isArray(data.video) ? data.video[0] : data.video,
-                all: Array.isArray(data.video) ? data.video : [data.video],
-              }
-            : null,
-          mp3: data.music
-            ? {
-                url: Array.isArray(data.music) ? data.music[0] : data.music,
-              }
-            : null,
+          mp4: d.video ? { url: d.video } : null,
+          mp3: d.audio ? { url: d.audio } : null,
         },
       });
       return;
     }
 
-    if (platform === "instagram") {
-      const data = await igdl(input);
-      const items = data?.data ?? [];
+    // YouTube — video info + mp4/mp3 download links
+    if (platform === "youtube") {
+      const result = await ytdown(url);
 
+      if (!result.status || !result.data) {
+        res.status(502).json({ success: false, error: "YouTube fetch failed", url });
+        return;
+      }
+
+      const d = result.data;
+      res.json({
+        success: true,
+        platform: "youtube",
+        info: {
+          title: d.title ?? null,
+          thumbnail: d.thumbnail ?? null,
+          duration: d.duration ?? null,
+        },
+        media: {
+          mp4: (d.video ?? d.high) ? { url: d.video ?? d.high, quality: "HD" } : null,
+          mp3: (d.audio ?? d.low) ? { url: d.audio ?? d.low } : null,
+        },
+      });
+      return;
+    }
+
+    // Twitter / X — HD and SD mp4 links
+    if (platform === "twitter") {
+      const result = await twitterdown(url);
+
+      if (!result.status || !result.data) {
+        res.status(502).json({ success: false, error: "Twitter fetch failed", url });
+        return;
+      }
+
+      const d = result.data;
+      res.json({
+        success: true,
+        platform: "twitter",
+        info: {},
+        media: {
+          mp4: d.HD ? { url: d.HD, quality: "HD" } : (d.SD ? { url: d.SD, quality: "SD" } : null),
+          mp3: null,
+          all: { hd: d.HD ?? null, sd: d.SD ?? null },
+        },
+      });
+      return;
+    }
+
+    // Instagram — array of media items
+    if (platform === "instagram") {
+      const result = await instagram(url);
+
+      if (!result.status) {
+        res.status(502).json({ success: false, error: "Instagram fetch failed", url });
+        return;
+      }
+
+      const items = result.data ?? [];
       res.json({
         success: true,
         platform: "instagram",
         info: { count: items.length },
         media: {
-          items,
-          mp4:
-            items.find((i) => i.url?.includes("mp4"))?.url ??
-            items[0]?.url ??
-            null,
+          items: items.map((i) => ({ url: i.url ?? null, thumbnail: i.thumbnail ?? null })),
+          mp4: items.find((i) => i.url?.includes("mp4"))?.url ?? items[0]?.url ?? null,
           mp3: null,
         },
       });
       return;
     }
 
-    if (platform === "facebook") {
-      const data = await fbdl(input);
-      const items = data?.data ?? [];
+    // Universal — FB, Pinterest, CapCut, Likee, Threads, Google Drive, etc.
+    const result = await alldownV2(url);
 
-      res.json({
-        success: true,
-        platform: "facebook",
-        info: {},
-        media: {
-          items,
-          mp4:
-            items.find((i) => i.resolution?.toLowerCase().includes("hd"))
-              ?.url ??
-            items[0]?.url ??
-            null,
-          mp3: null,
-        },
-      });
+    if (!result.status || !result.data) {
+      res.status(502).json({ success: false, error: "Could not fetch media from this URL", url });
       return;
     }
 
-    // Search mode — treat input as a YouTube keyword search
-    const { video, channel } = await ytsearch(input);
-
+    const d = result.data;
     res.json({
       success: true,
-      platform: "youtube_search",
-      query: input,
-      results: {
-        videos: (video ?? []).slice(0, 10).map((v) => ({
-          title: v.title ?? null,
-          url: v.url ?? null,
-          duration: v.durationH ?? null,
-          published: v.publishedTime ?? null,
-          views: v.view ?? null,
-          thumbnail: v.thumbnail?.[0]?.url ?? null,
-          author: { name: v.author?.name ?? null, url: v.author?.url ?? null },
-        })),
-        channels: (channel ?? []).slice(0, 5).map((c) => ({
-          name: c.channelName ?? null,
-          url: c.url ?? null,
-          subscribers: c.subscriberH ?? null,
-          videoCount: c.videoCount ?? null,
-        })),
+      platform: "universal",
+      info: {
+        title: d.title ?? null,
+        thumbnail: d.thumbnail ?? null,
+        token_expires: d.token_info?.expires_at ?? null,
+        token_remaining: d.token_info?.remaining ?? null,
+      },
+      media: {
+        mp4: d.download?.video
+          ? { url: d.download.video, stream: d.stream?.video ?? null }
+          : null,
+        mp3: d.download?.audio
+          ? { url: d.download.audio, stream: d.stream?.audio ?? null }
+          : null,
       },
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    req.log.error({ err, input, platform }, "Download error");
-    res.status(500).json({ success: false, error: message, platform, input });
+    req.log.error({ err, url, platform }, "Download error");
+    res.status(500).json({ success: false, error: message, platform, url });
   }
 });
 

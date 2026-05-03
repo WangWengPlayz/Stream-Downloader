@@ -10,16 +10,15 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@distube/ytdl-core": "^4.16.12",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "drizzle-orm": "catalog:",
     "express": "^5",
+    "nayan-media-downloaders": "^0.1.8",
     "pino": "^9",
-    "pino-http": "^10",
-    "ruhend-scraper": "^10.0.1"
+    "pino-http": "^10"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
