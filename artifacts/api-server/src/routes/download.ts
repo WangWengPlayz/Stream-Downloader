@@ -119,6 +119,7 @@ router.get("/v1/q", async (req: Request, res: Response) => {
     // --- Cache hit ---
     const cached = cache.get(videoId);
     if (cached) {
+      res.setHeader("Cache-Control", "public, max-age=90");
       res.json({ ...cached, cached: true });
       return;
     }
@@ -169,6 +170,7 @@ router.get("/v1/q", async (req: Request, res: Response) => {
     };
 
     cache.set(videoId, response);
+    res.setHeader("Cache-Control", "public, max-age=90");
     res.json(response);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
