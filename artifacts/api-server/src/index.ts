@@ -23,3 +23,12 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 });
+
+// Auto-restart every 24 hours to keep memory clean
+if (process.env.NODE_ENV === "production") {
+  const MS_24H = 24 * 60 * 60 * 1000;
+  setTimeout(() => {
+    logger.info("24-hour scheduled restart — exiting cleanly");
+    process.exit(0);
+  }, MS_24H).unref();
+}
