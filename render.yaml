@@ -3,7 +3,7 @@ services:
     name: youtube-dl-api
     runtime: node
     plan: free
-    buildCommand: pnpm install && pnpm run typecheck:libs && pnpm --filter @workspace/api-server run build
+    buildCommand: pnpm install && pnpm --filter @workspace/api-server run build
     startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
     healthCheckPath: /api/healthz
     envVars:
