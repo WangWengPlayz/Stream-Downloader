@@ -9,12 +9,12 @@ const { ytdown } = _require("nayan-media-downloaders") as typeof import("nayan-m
 
 const router: IRouter = Router();
 
-// 90-second cache — safe margin for expiring download links
 interface VideoResponse {
   version: string;
   success: true;
   creditTo: "MJL";
   cached: boolean;
+  ms: number;
   video_id: string;
   url: string;
   info: Record<string, unknown>;
@@ -24,7 +24,7 @@ interface VideoResponse {
   };
 }
 
-const cache = new TtlCache<VideoResponse>(90_000);
+const cache = new TtlCache<Omit<VideoResponse, "ms" | "cached">>(90_000);
 
 const YT_URL_RE =
   /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/;
@@ -47,7 +47,6 @@ function resolveAuthor(author: yts.VideoAuthor | string | undefined): {
   return { name: author.name ?? null, url: author.url ?? null };
 }
 
-/** Returns a new object with null, undefined, and empty-array values removed. */
 function clean(obj: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(obj).filter(([, v]) => {
@@ -59,6 +58,7 @@ function clean(obj: Record<string, unknown>): Record<string, unknown> {
 }
 
 router.get("/v1/q", async (req: Request, res: Response) => {
+  const t0 = Date.now();
   const query = req.query[""] as string | undefined;
 
   if (!query || !query.trim()) {
@@ -66,6 +66,7 @@ router.get("/v1/q", async (req: Request, res: Response) => {
       version: VERSION,
       success: false,
       creditTo: "MJL",
+      ms: Date.now() - t0,
       error: "Missing query.",
       usage: "/api/v1/q?=(YouTube URL or song/video title)",
       examples: [
@@ -83,7 +84,6 @@ router.get("/v1/q", async (req: Request, res: Response) => {
     let videoId: string | null = null;
     let youtubeUrl: string;
 
-    // --- Step 1: Resolve to a video ID ---
     if (isUrl(input)) {
       videoId = extractVideoId(input);
       if (!videoId) {
@@ -91,6 +91,7 @@ router.get("/v1/q", async (req: Request, res: Response) => {
           version: VERSION,
           success: false,
           creditTo: "MJL",
+          ms: Date.now() - t0,
           error:
             "Could not extract a YouTube video ID from this URL. Make sure it is a valid YouTube link.",
           input,
@@ -99,7 +100,6 @@ router.get("/v1/q", async (req: Request, res: Response) => {
       }
       youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
     } else {
-      // Title / keyword search
       const searchResult = await yts(input);
       const first = searchResult.videos[0];
       if (!first) {
@@ -107,6 +107,7 @@ router.get("/v1/q", async (req: Request, res: Response) => {
           version: VERSION,
           success: false,
           creditTo: "MJL",
+          ms: Date.now() - t0,
           error: "No YouTube results found for this query.",
           query: input,
         });
@@ -116,17 +117,14 @@ router.get("/v1/q", async (req: Request, res: Response) => {
       youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
     }
 
-    // --- Cache hit ---
+    // Cache hit — serve instantly, ms reflects cache retrieval time
     const cached = cache.get(videoId);
     if (cached) {
       res.setHeader("Cache-Control", "public, max-age=90");
-      res.json({ ...cached, cached: true });
+      res.json({ ...cached, cached: true, ms: Date.now() - t0 });
       return;
     }
 
-    // --- Step 2: Full metadata + download links in parallel ---
-    // Always call yts({ videoId }) so we get the complete description,
-    // keywords, channel URL, and other rich fields.
     const [infoResult, dlResult] = await Promise.allSettled([
       yts({ videoId }),
       ytdown(youtubeUrl),
@@ -155,11 +153,10 @@ router.get("/v1/q", async (req: Request, res: Response) => {
     const mp4Url = dlData?.video ?? dlData?.high ?? null;
     const mp3Url = dlData?.audio ?? dlData?.low ?? null;
 
-    const response: VideoResponse = {
+    const payload: Omit<VideoResponse, "ms" | "cached"> = {
       version: VERSION,
       success: true,
       creditTo: "MJL",
-      cached: false,
       video_id: videoId,
       url: youtubeUrl,
       info: clean(rawInfo),
@@ -169,9 +166,9 @@ router.get("/v1/q", async (req: Request, res: Response) => {
       },
     };
 
-    cache.set(videoId, response);
+    cache.set(videoId, payload);
     res.setHeader("Cache-Control", "public, max-age=90");
-    res.json(response);
+    res.json({ ...payload, cached: false, ms: Date.now() - t0 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     req.log.error({ err, input }, "YouTube download error");
@@ -179,6 +176,7 @@ router.get("/v1/q", async (req: Request, res: Response) => {
       version: VERSION,
       success: false,
       creditTo: "MJL",
+      ms: Date.now() - t0,
       error: message,
       input,
     });
