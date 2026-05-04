@@ -5,15 +5,24 @@ const router: IRouter = Router();
 
 const CHANGELOG: { version: string; date: string; tag: string; notes: string[] }[] = [
   {
-    version: "1.0.4",
+    version: "1.0.5",
     date: "2026-05-04",
     tag: "current",
     notes: [
+      "New /api/v2/q — fast endpoint: title + download links only, no extra metadata",
+      "Fixed 'Show less' not scrolling back — now snaps card into view",
+      "Disabled page text selection for cleaner UX",
+    ],
+  },
+  {
+    version: "1.0.4",
+    date: "2026-05-04",
+    tag: "",
+    notes: [
       "Rebranded to TubeFetch (TF)",
       "YouTube Dark Mode theme (#0F0F0F / #212121 / #FF0000)",
-      "Copy endpoint URL button — copies the full API URL used",
-      "Smooth accordion open/close animations",
-      "Bell notification open/close slide animations",
+      "Copy endpoint URL button",
+      "Smooth accordion & bell animations",
     ],
   },
   {
@@ -21,20 +30,9 @@ const CHANGELOG: { version: string; date: string; tag: string; notes: string[] }
     date: "2026-05-04",
     tag: "",
     notes: [
-      "Endpoint cards are now interactive — click to expand & test inline",
-      "Response time (ms) shown in every API response",
+      "Interactive expandable endpoint cards with inline tester",
+      "ms timing field on every API response",
       "Bell notification panel for changelog",
-      "Redesigned UI — cleaner layout, sticky nav, better cards",
-    ],
-  },
-  {
-    version: "1.0.2",
-    date: "2026-05-03",
-    tag: "",
-    notes: [
-      "Rich result card — thumbnail, title, author, stats, download buttons",
-      "Non-skippable intro splash screen",
-      "Fixed result display rendering bug",
     ],
   },
   {
@@ -73,24 +71,33 @@ function buildHtml(version: string): string {
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     html{scroll-behavior:smooth}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0F0F0F;color:#F1F1F1;min-height:100vh;overflow-x:hidden}
+
+    /* ── DISABLE TEXT SELECTION on all non-interactive elements ── */
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      background:#0F0F0F;color:#F1F1F1;min-height:100vh;overflow-x:hidden;
+      user-select:none;-webkit-user-select:none;
+    }
+    /* Re-enable selection only where it makes sense */
+    pre,code,input,textarea,.jbox{
+      user-select:text;-webkit-user-select:text;
+    }
 
     /* ── INTRO ── */
     #intro{position:fixed;inset:0;z-index:9999;background:#0F0F0F;display:flex;align-items:center;justify-content:center;transition:opacity .65s ease}
     #intro.out{opacity:0;pointer-events:none}
     .i-box{text-align:center;animation:pop .5s cubic-bezier(.34,1.56,.64,1) both}
     @keyframes pop{from{opacity:0;transform:scale(.82) translateY(16px)}to{opacity:1;transform:none}}
-    .i-icon{width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#CC0000,#FF0000);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;box-shadow:0 0 0 0 rgba(255,0,0,.45);animation:glow 1.8s ease-out infinite}
+    .i-icon{width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#CC0000,#FF0000);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;animation:glow 1.8s ease-out infinite}
     @keyframes glow{0%{box-shadow:0 0 0 0 rgba(255,0,0,.45)}70%{box-shadow:0 0 0 20px transparent}100%{box-shadow:0 0 0 0 transparent}}
     .i-icon svg{width:34px;height:34px;fill:#fff}
     .i-title{font-size:clamp(1.8rem,5vw,2.5rem);font-weight:900;color:#F1F1F1;letter-spacing:-1px}
     .i-tf{font-size:.75rem;font-weight:800;color:#FF0000;letter-spacing:2px;margin-top:4px;text-transform:uppercase}
-    .i-sub{color:#717171;font-size:.8rem;margin-top:4px;letter-spacing:.3px}
     .i-bar-wrap{width:160px;height:3px;background:#272727;border-radius:2px;margin:26px auto 0;overflow:hidden}
     .i-bar{height:100%;background:linear-gradient(90deg,#CC0000,#FF0000);border-radius:2px;width:0;transition:width 2.3s cubic-bezier(.4,0,.2,1)}
     .i-ver{color:#3F3F3F;font-size:.7rem;font-family:monospace;margin-top:12px;letter-spacing:.3px}
 
-    /* ── STICKY TOPBAR ── */
+    /* ── TOPBAR ── */
     .topbar{position:sticky;top:0;z-index:100;background:rgba(15,15,15,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid #272727;display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:54px}
     .topbar-logo{display:flex;align-items:center;gap:9px;text-decoration:none}
     .topbar-icon{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#CC0000,#FF0000);display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -112,12 +119,7 @@ function buildHtml(version: string): string {
     .bell-btn svg{width:15px;height:15px}
     .bell-dot{position:absolute;top:5px;right:5px;width:7px;height:7px;background:#FF0000;border-radius:50%;border:1.5px solid #0F0F0F;animation:dot-pulse 2s ease infinite}
     @keyframes dot-pulse{0%,100%{opacity:1}50%{opacity:.5}}
-    .bell-panel{
-      display:none;position:absolute;top:calc(100% + 10px);right:0;width:310px;
-      background:#212121;border:1px solid #3F3F3F;border-radius:14px;
-      box-shadow:0 20px 60px rgba(0,0,0,.8);z-index:200;overflow:hidden;
-      transform-origin:top right;
-    }
+    .bell-panel{display:none;position:absolute;top:calc(100% + 10px);right:0;width:310px;background:#212121;border:1px solid #3F3F3F;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.8);z-index:200;overflow:hidden;transform-origin:top right}
     .bell-panel.opening{display:block;animation:bell-in .2s cubic-bezier(.34,1.2,.64,1) both}
     .bell-panel.open{display:block}
     .bell-panel.closing{display:block;animation:bell-out .15s ease forwards}
@@ -126,11 +128,10 @@ function buildHtml(version: string): string {
     .bell-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 12px;border-bottom:1px solid #3F3F3F}
     .bell-head-title{font-size:.75rem;font-weight:800;color:#F1F1F1;letter-spacing:.6px;text-transform:uppercase;display:flex;align-items:center;gap:7px}
     .bell-head-title::before{content:'';width:8px;height:8px;background:#FF0000;border-radius:50%;display:inline-block}
-    .bell-close{background:none;border:none;color:#717171;cursor:pointer;font-size:.9rem;line-height:1;padding:3px 6px;border-radius:5px;transition:all .15s}
+    .bell-close{background:none;border:none;color:#717171;cursor:pointer;font-size:.9rem;padding:3px 6px;border-radius:5px;transition:all .15s}
     .bell-close:hover{color:#F1F1F1;background:#3F3F3F}
     .bell-list{max-height:340px;overflow-y:auto;padding:8px 0}
     .bell-list::-webkit-scrollbar{width:4px}
-    .bell-list::-webkit-scrollbar-track{background:transparent}
     .bell-list::-webkit-scrollbar-thumb{background:#3F3F3F;border-radius:2px}
     .cl-item{padding:12px 16px;border-bottom:1px solid #272727}
     .cl-item:last-child{border-bottom:none}
@@ -167,34 +168,30 @@ function buildHtml(version: string): string {
     .ep-card{background:#212121;border:1px solid #3F3F3F;border-radius:12px;overflow:hidden;transition:border-color .2s,box-shadow .2s}
     .ep-card:hover{border-color:#555}
     .ep-card.open{border-color:#FF0000;box-shadow:0 0 0 1px rgba(255,0,0,.15)}
-    .ep-header{display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;user-select:none;transition:background .15s}
+    .ep-header{display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .15s}
     .ep-header:hover{background:rgba(255,255,255,.03)}
     .ep-header:active{background:rgba(255,255,255,.06)}
     .ep-method{font-size:.63rem;font-weight:900;padding:3px 8px;border-radius:5px;background:#1a5c2e;color:#4ade80;letter-spacing:.4px;flex-shrink:0;border:1px solid rgba(74,222,128,.2)}
-    .ep-path{font-family:'Menlo','Consolas',monospace;font-size:.8rem;color:#60a5fa;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .ep-method.v2{background:#1a3a5c;color:#60a5fa;border-color:rgba(96,165,250,.2)}
+    .ep-path{font-family:'Menlo','Consolas',monospace;font-size:.8rem;color:#60a5fa;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:text;-webkit-user-select:text}
     .ep-desc-label{font-size:.71rem;color:#717171;white-space:nowrap;margin-right:6px}
     @media(max-width:480px){.ep-desc-label{display:none}}
     .ep-chevron{color:#3F3F3F;flex-shrink:0;transition:transform .3s cubic-bezier(.34,1.2,.64,1),color .2s}
     .ep-chevron svg{width:14px;height:14px}
     .ep-card.open .ep-chevron{transform:rotate(180deg);color:#FF0000}
 
-    /* accordion body — animated with max-height */
-    .ep-body{
-      max-height:0;overflow:hidden;
-      transition:max-height .35s cubic-bezier(.4,0,.2,1);
-      border-top:0px solid #272727;
-    }
-    .ep-card.open .ep-body{
-      max-height:1200px;
-      border-top-width:1px;
-    }
+    /* Animated accordion body */
+    .ep-body{max-height:0;overflow:hidden;transition:max-height .35s cubic-bezier(.4,0,.2,1);border-top:0px solid #272727}
+    .ep-card.open .ep-body{max-height:1400px;border-top-width:1px}
     .ep-body-inner{padding:16px}
+
     .ep-info{font-size:.8rem;color:#AAAAAA;line-height:1.65;margin-bottom:14px}
-    .ep-info code{background:#3F3F3F;color:#F1F1F1;padding:1px 5px;border-radius:4px;font-size:.85em}
+    .ep-info code{background:#3F3F3F;color:#F1F1F1;padding:1px 5px;border-radius:4px;font-size:.85em;user-select:text;-webkit-user-select:text}
     .ep-info strong{color:#F1F1F1}
+    .ep-badge-fast{display:inline-flex;align-items:center;gap:5px;background:rgba(96,165,250,.1);color:#60a5fa;border:1px solid rgba(96,165,250,.2);border-radius:5px;font-size:.68rem;font-weight:800;padding:2px 8px;letter-spacing:.4px;margin-left:6px;vertical-align:middle}
 
     .ep-input-row{display:flex;gap:8px;margin-bottom:12px}
-    .ep-input{flex:1;min-width:0;background:#0F0F0F;border:1px solid #3F3F3F;border-radius:8px;color:#F1F1F1;padding:10px 14px;font-size:.84rem;outline:none;transition:border-color .18s,box-shadow .18s;font-family:inherit}
+    .ep-input{flex:1;min-width:0;background:#0F0F0F;border:1px solid #3F3F3F;border-radius:8px;color:#F1F1F1;padding:10px 14px;font-size:.84rem;outline:none;transition:border-color .18s,box-shadow .18s;font-family:inherit;user-select:text;-webkit-user-select:text}
     .ep-input:focus{border-color:#FF0000;box-shadow:0 0 0 3px rgba(255,0,0,.12)}
     .ep-input::placeholder{color:#3F3F3F}
     .ep-fetch-btn{background:#FF0000;color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:700;transition:background .15s,transform .1s,box-shadow .15s;white-space:nowrap;display:flex;align-items:center;gap:6px}
@@ -215,12 +212,12 @@ function buildHtml(version: string): string {
 
     /* Copy URL strip */
     .copy-url-strip{display:flex;align-items:center;gap:8px;background:#0F0F0F;border:1px solid #3F3F3F;border-radius:8px;padding:8px 12px;margin-bottom:10px;overflow:hidden}
-    .copy-url-strip code{flex:1;font-family:'Menlo','Consolas',monospace;font-size:.73rem;color:#60a5fa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .copy-url-strip code{flex:1;font-family:'Menlo','Consolas',monospace;font-size:.73rem;color:#60a5fa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:text;-webkit-user-select:text}
     .copy-url-btn{background:#3F3F3F;color:#F1F1F1;border:none;border-radius:5px;padding:4px 10px;font-size:.68rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0;display:flex;align-items:center;gap:4px}
     .copy-url-btn:hover{background:#555;color:#fff}
     .copy-url-btn svg{width:11px;height:11px}
 
-    /* ── RICH RESULT CARD ── */
+    /* ── V1 RICH RESULT CARD ── */
     .r-card{background:#0F0F0F;border:1px solid #3F3F3F;border-radius:10px;overflow:hidden;margin-bottom:10px;animation:slide-up .25s ease}
     @keyframes slide-up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
     .r-inner{display:grid;grid-template-columns:180px 1fr}
@@ -236,17 +233,26 @@ function buildHtml(version: string): string {
     .r-stats{display:flex;flex-wrap:wrap;gap:4px 12px}
     .r-stat{font-size:.71rem;color:#AAAAAA;display:flex;align-items:center;gap:4px}
     .r-desc-wrap{font-size:.74rem;color:#AAAAAA;line-height:1.55;display:none}
-    .r-desc-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-line}
+    .r-desc-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-line;user-select:text;-webkit-user-select:text}
     .r-desc-text.exp{-webkit-line-clamp:unset}
     .r-more{background:none;border:none;color:#FF0000;font-size:.7rem;font-weight:700;cursor:pointer;padding:2px 0;margin-top:3px;display:block;transition:color .15s}
     .r-more:hover{color:#FF4444}
     .r-dl{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
-    .dl-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border-radius:8px;font-size:.76rem;font-weight:700;text-decoration:none;transition:all .15s;border:1px solid transparent}
+
+    /* ── V2 QUICK RESULT CARD ── */
+    .v2-card{background:#0F0F0F;border:1px solid #3F3F3F;border-radius:10px;padding:16px 18px;margin-bottom:10px;animation:slide-up .25s ease}
+    .v2-label{font-size:.62rem;font-weight:800;color:#717171;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+    .v2-title{font-size:.98rem;font-weight:700;color:#F1F1F1;line-height:1.35;margin-bottom:12px;user-select:text;-webkit-user-select:text}
+    .v2-dl{display:flex;gap:8px;flex-wrap:wrap}
+
+    /* ── SHARED DOWNLOAD BUTTONS ── */
+    .dl-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 15px;border-radius:8px;font-size:.78rem;font-weight:700;text-decoration:none;transition:all .15s;border:1px solid transparent}
     .dl-mp4{background:rgba(255,0,0,.1);color:#FF4444;border-color:rgba(255,0,0,.2)}
     .dl-mp4:hover{background:rgba(255,0,0,.2);color:#FF6666;transform:translateY(-1px)}
     .dl-mp3{background:rgba(96,165,250,.1);color:#60a5fa;border-color:rgba(96,165,250,.2)}
     .dl-mp3:hover{background:rgba(96,165,250,.2);color:#93c5fd;transform:translateY(-1px)}
     .dl-btn svg{width:12px;height:12px;flex-shrink:0}
+    .dl-none{font-size:.78rem;color:#717171;font-style:italic}
 
     /* ── SKELETON ── */
     .ep-skel{display:none;flex-direction:column;gap:10px;padding:6px 0 8px}
@@ -258,9 +264,8 @@ function buildHtml(version: string): string {
     .json-label{font-size:.65rem;font-weight:800;color:#717171;text-transform:uppercase;letter-spacing:.6px}
     .copy-btn{background:#3F3F3F;color:#AAAAAA;border:1px solid #555;border-radius:5px;padding:3px 9px;font-size:.67rem;cursor:pointer;font-weight:700;transition:all .15s}
     .copy-btn:hover{background:#555;color:#F1F1F1}
-    pre.jbox{background:#050505;border:1px solid #272727;border-radius:8px;padding:14px;font-family:'Menlo','Consolas',monospace;font-size:.72rem;line-height:1.65;overflow:auto;white-space:pre-wrap;word-break:break-all;max-height:340px;margin:0}
+    pre.jbox{background:#050505;border:1px solid #272727;border-radius:8px;padding:14px;font-family:'Menlo','Consolas',monospace;font-size:.72rem;line-height:1.65;overflow:auto;white-space:pre-wrap;word-break:break-all;max-height:340px;margin:0;user-select:text;-webkit-user-select:text}
     pre.jbox::-webkit-scrollbar{width:4px;height:4px}
-    pre.jbox::-webkit-scrollbar-track{background:transparent}
     pre.jbox::-webkit-scrollbar-thumb{background:#3F3F3F;border-radius:2px}
     .jk{color:#FF4444}.js{color:#86efac}.jn{color:#fbbf24}.jb{color:#818cf8}
 
@@ -291,7 +296,7 @@ function buildHtml(version: string): string {
   </div>
 </div>
 
-<!-- STICKY TOPBAR -->
+<!-- TOPBAR -->
 <nav class="topbar">
   <a class="topbar-logo" href="#">
     <div class="topbar-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
@@ -343,17 +348,17 @@ function buildHtml(version: string): string {
   <div class="sec-label" id="endpoints">⚡ Endpoints — click to expand &amp; test</div>
   <div class="ep-list">
 
-    <!-- /api/v1/q -->
+    <!-- /api/v1/q — full metadata -->
     <div class="ep-card" id="ep0">
       <div class="ep-header" onclick="toggleEp(0)">
         <span class="ep-method">GET</span>
         <span class="ep-path">/api/v1/q?=(url or title)</span>
-        <span class="ep-desc-label">Video info + download links</span>
+        <span class="ep-desc-label">Full metadata + downloads</span>
         <span class="ep-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
       </div>
       <div class="ep-body">
         <div class="ep-body-inner">
-          <p class="ep-info">Pass any YouTube <code>URL</code> or plain search title. Returns full metadata — title, author, thumbnail, duration, views — plus direct <code>MP4</code> &amp; <code>MP3</code> download links. Results cached for <strong>90 seconds</strong>. Every response includes a <strong>ms</strong> timing field.</p>
+          <p class="ep-info">Pass any YouTube <code>URL</code> or plain search title. Returns full metadata — title, author, thumbnail, duration, views, description — plus direct <code>MP4</code> &amp; <code>MP3</code> download links. Results cached <strong>90 seconds</strong>. Every response includes a <strong>ms</strong> timing field.</p>
           <div class="ep-input-row">
             <input class="ep-input" id="q0" type="text" placeholder="e.g.  bohemian rhapsody  or  https://youtu.be/…" onkeydown="if(event.key==='Enter')fetchEp(0)"/>
             <button class="ep-fetch-btn" id="btn0" onclick="fetchEp(0)">
@@ -405,6 +410,58 @@ function buildHtml(version: string): string {
               <button class="copy-btn" onclick="copyRaw(0)">Copy JSON</button>
             </div>
             <pre class="jbox" id="raw0"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- /api/v2/q — fast -->
+    <div class="ep-card" id="ep3">
+      <div class="ep-header" onclick="toggleEp(3)">
+        <span class="ep-method v2">GET</span>
+        <span class="ep-path">/api/v2/q?=(url or title)</span>
+        <span class="ep-desc-label">Fast — title + links only <span class="ep-badge-fast">⚡ v2</span></span>
+        <span class="ep-chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+      </div>
+      <div class="ep-body">
+        <div class="ep-body-inner">
+          <p class="ep-info">
+            Faster than v1 — skips full metadata and only fetches the video <strong>title</strong> + direct <code>MP4</code> &amp; <code>MP3</code> download links. Perfect for bots or scripts that only need the download URL quickly. Includes <code>creditTo</code>, <code>version</code>, and <code>ms</code> timing.
+          </p>
+          <div class="ep-input-row">
+            <input class="ep-input" id="q3" type="text" placeholder="e.g.  never gonna give you up  or  https://youtu.be/…" onkeydown="if(event.key==='Enter')fetchEp(3)"/>
+            <button class="ep-fetch-btn" id="btn3" onclick="fetchEp(3)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Search
+            </button>
+          </div>
+          <div class="ep-skel" id="skel3">
+            <div class="skel-line" style="width:60%;height:14px"></div>
+            <div class="skel-line" style="width:40%;height:28px;border-radius:7px;margin-top:4px"></div>
+          </div>
+          <div class="ep-result" id="res3">
+            <div class="ep-result-meta">
+              <span class="ep-status" id="stat3"></span>
+              <span class="ep-ms" id="ms3"></span>
+              <span class="ep-cached" id="cac3" style="display:none">⚡ Cached</span>
+            </div>
+            <div class="copy-url-strip" id="curl3" style="display:none">
+              <code id="curl3-text"></code>
+              <button class="copy-url-btn" onclick="copyUrl(3)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy URL
+              </button>
+            </div>
+            <div class="v2-card" id="v2card" style="display:none">
+              <div class="v2-label">Result</div>
+              <div class="v2-title" id="v2-title"></div>
+              <div class="v2-dl" id="v2-dl"></div>
+            </div>
+            <div class="json-actions">
+              <span class="json-label">Raw Response</span>
+              <button class="copy-btn" onclick="copyRaw(3)">Copy JSON</button>
+            </div>
+            <pre class="jbox" id="raw3"></pre>
           </div>
         </div>
       </div>
@@ -499,7 +556,7 @@ function buildHtml(version: string): string {
 
   <div class="card about" id="about">
     <div class="card-title">About TubeFetch</div>
-    <p>Pass any YouTube URL or plain search title to <code>/api/v1/q</code> and receive full video metadata plus direct <strong>MP4 HD</strong> and <strong>MP3</strong> download URLs ready to use in bots, apps, or scripts. Results are cached for <strong>90 seconds</strong>. Every response includes a <strong>ms</strong> field showing how fast the server fetched the data.</p>
+    <p>Pass any YouTube URL or plain search title to <code>/api/v1/q</code> for full metadata or <code>/api/v2/q</code> for a faster response with just the title and download links. Get direct <strong>MP4 HD</strong> and <strong>MP3</strong> URLs ready for bots, apps, or scripts. Results are cached for <strong>90 seconds</strong>. Every response includes a <strong>ms</strong> timing field.</p>
   </div>
 
   <div class="card disc" id="disclaimer">
@@ -528,8 +585,7 @@ function buildHtml(version: string): string {
 var bellOpen=false;
 function toggleBell(){bellOpen?closeBell():openBell();}
 function openBell(){
-  var p=document.getElementById('bell-panel');
-  var b=document.getElementById('bell-btn');
+  var p=document.getElementById('bell-panel'),b=document.getElementById('bell-btn');
   bellOpen=true;
   b.classList.add('active');
   document.getElementById('bell-dot').style.display='none';
@@ -539,8 +595,7 @@ function openBell(){
   setTimeout(function(){document.addEventListener('click',bellOutside,true);},10);
 }
 function closeBell(){
-  var p=document.getElementById('bell-panel');
-  var b=document.getElementById('bell-btn');
+  var p=document.getElementById('bell-panel'),b=document.getElementById('bell-btn');
   bellOpen=false;
   b.classList.remove('active');
   document.removeEventListener('click',bellOutside,true);
@@ -549,18 +604,17 @@ function closeBell(){
   setTimeout(function(){p.classList.remove('closing');},160);
 }
 function bellOutside(e){
-  if(!document.querySelector('.bell-wrap').contains(e.target)){closeBell();}
+  if(!document.querySelector('.bell-wrap').contains(e.target))closeBell();
 }
 
 /* ── ACCORDION ── */
 function toggleEp(n){
-  var card=document.getElementById('ep'+n);
-  card.classList.toggle('open');
+  document.getElementById('ep'+n).classList.toggle('open');
 }
 
 /* ── STATE ── */
-var rawStore=['','',''];
-var urlStore=['','',''];
+var rawStore={0:'',1:'',2:'',3:''};
+var urlStore={0:'',1:'',2:'',3:''};
 var descExpanded=false;
 
 /* ── UTILS ── */
@@ -595,55 +649,62 @@ function dlIcon(){
 function copyRaw(n){
   if(!rawStore[n])return;
   navigator.clipboard.writeText(rawStore[n]).then(function(){
-    var btns=document.querySelectorAll('#res'+n+' .copy-btn');
-    btns.forEach(function(b){b.textContent='Copied!';});
-    setTimeout(function(){btns.forEach(function(b){b.textContent='Copy JSON';});},1500);
+    var b=document.querySelector('#res'+n+' .copy-btn');
+    if(b){var orig=b.textContent;b.textContent='Copied!';setTimeout(function(){b.textContent=orig;},1500);}
   });
 }
 
 function copyUrl(n){
   if(!urlStore[n])return;
   navigator.clipboard.writeText(urlStore[n]).then(function(){
-    var btns=document.querySelectorAll('#curl'+n+' .copy-url-btn');
-    btns.forEach(function(b){
-      var orig=b.innerHTML;
-      b.textContent='Copied!';
-      setTimeout(function(){b.innerHTML=orig;},1500);
-    });
+    var b=document.querySelector('#curl'+n+' .copy-url-btn');
+    if(b){var h=b.innerHTML;b.textContent='Copied!';setTimeout(function(){b.innerHTML=h;},1500);}
   });
 }
 
+/* ── FIX: toggleDesc scrolls card into view on collapse ── */
 function toggleDesc(){
   descExpanded=!descExpanded;
   document.getElementById('r-desc').classList.toggle('exp',descExpanded);
   document.getElementById('r-more').textContent=descExpanded?'Show less':'Read more';
+  if(!descExpanded){
+    /* scroll the result card back into viewport so user isn't stranded */
+    setTimeout(function(){
+      var card=document.getElementById('rcard0');
+      if(card)card.scrollIntoView({behavior:'smooth',block:'nearest'});
+    },50);
+  }
 }
 
 function setBtnDefault(n){
   var btn=document.getElementById('btn'+n);
   btn.disabled=false;
-  if(n===0){
-    btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Search';
-  } else {
-    btn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Fetch';
-  }
+  var isSearch=(n===0||n===3);
+  btn.innerHTML=isSearch
+    ?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Search'
+    :'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Fetch';
 }
 
 /* ── FETCH ── */
 async function fetchEp(n){
   var btn=document.getElementById('btn'+n);
   btn.disabled=true;
-  btn.textContent=n===0?'Searching\u2026':'Fetching\u2026';
+  btn.textContent=(n===0||n===3)?'Searching\u2026':'Fetching\u2026';
 
   sv('skel'+n,true,'flex');
   sv('res'+n,false,'block');
   if(n===0){sv('rcard0',false,'block');sv('curl0',false,'block');}
+  if(n===3){sv('v2card',false,'block');sv('curl3',false,'block');}
 
   var url;
   if(n===0){
     var q=document.getElementById('q0').value.trim();
     if(!q){setBtnDefault(n);sv('skel'+n,false,'flex');return;}
     url='/api/v1/q?='+encodeURIComponent(q);
+  } else if(n===3){
+    var q3=document.getElementById('q3').value.trim();
+    if(!q3){setBtnDefault(n);sv('skel'+n,false,'flex');return;}
+    url='/api/v2/q?='+encodeURIComponent(q3);
   } else if(n===1){
     url='/api/uptime';
   } else {
@@ -667,26 +728,22 @@ async function fetchEp(n){
     statEl.textContent=resp.ok?'200 OK':resp.status+' Error';
     statEl.className='ep-status '+(resp.ok?'ok':'err');
 
-    var serverMs=typeof data==='object'&&data&&typeof data.ms==='number'?data.ms:null;
-    document.getElementById('ms'+n).textContent=(serverMs!==null?(serverMs+'ms (server)'):(clientMs+'ms'));
+    var sms=typeof data==='object'&&data&&typeof data.ms==='number'?data.ms:null;
+    document.getElementById('ms'+n).textContent=sms!==null?(sms+'ms (server)'):(clientMs+'ms');
 
-    if(n===0){
-      sv('cac0',(typeof data==='object'&&data&&data.cached)?true:false,'inline-flex');
-      // Copy URL strip with the actual query URL
-      var curlText=document.getElementById('curl0-text');
-      curlText.textContent=url;
-      sv('curl0',true,'flex');
-    }
+    /* cached badge */
+    var cacEl=document.getElementById('cac'+n);
+    if(cacEl)cacEl.style.display=(typeof data==='object'&&data&&data.cached)?'inline-flex':'none';
 
-    // Show copy URL strips for ep1/ep2 always (static URL)
-    if(n===1||n===2){
-      document.getElementById('curl'+n+'-text').textContent=url;
-    }
+    /* copy URL strip */
+    var curlEl=document.getElementById('curl'+n+'-text');
+    if(curlEl)curlEl.textContent=url;
+    if(n===0||n===3)sv('curl'+n,resp.ok?true:false,'flex');
 
     document.getElementById('raw'+n).innerHTML=typeof data==='string'?data:hl(rawStore[n]);
     sv('res'+n,true,'block');
 
-    // Rich card for ep0
+    /* ── V1 rich card ── */
     if(n===0&&typeof data==='object'&&data&&data.success){
       var info=data.info||{};
       var media=data.media||{};
@@ -739,6 +796,31 @@ async function fetchEp(n){
       }
       sv('rcard0',true,'block');
     }
+
+    /* ── V2 quick card ── */
+    if(n===3&&typeof data==='object'&&data&&data.success){
+      var media3=data.media||{};
+      document.getElementById('v2-title').textContent=data.title||data.video_id||'Unknown';
+
+      var dlRow3=document.getElementById('v2-dl');
+      dlRow3.innerHTML='';
+      var hasLink=false;
+      if(media3.mp4&&media3.mp4.url){
+        var b4=document.createElement('a');
+        b4.href=media3.mp4.url;b4.target='_blank';b4.rel='noopener noreferrer';
+        b4.className='dl-btn dl-mp4';b4.innerHTML=dlIcon()+'Download MP4';
+        dlRow3.appendChild(b4);hasLink=true;
+      }
+      if(media3.mp3&&media3.mp3.url){
+        var b3=document.createElement('a');
+        b3.href=media3.mp3.url;b3.target='_blank';b3.rel='noopener noreferrer';
+        b3.className='dl-btn dl-mp3';b3.innerHTML=dlIcon()+'Download MP3';
+        dlRow3.appendChild(b3);hasLink=true;
+      }
+      if(!hasLink)dlRow3.innerHTML='<span class="dl-none">No download links available</span>';
+      sv('v2card',true,'block');
+    }
+
   }catch(e){
     sv('skel'+n,false,'flex');
     rawStore[n]='Network error: '+e.message;
