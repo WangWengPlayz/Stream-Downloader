@@ -10,21 +10,16 @@ const { ytdown } = _require("nayan-media-downloaders") as typeof import("nayan-m
 const router: IRouter = Router();
 
 interface V2Response {
+  credit: "MJL";
   version: string;
-  success: true;
-  creditTo: "MJL";
-  cached: boolean;
   ms: number;
-  video_id: string;
-  url: string;
-  title: string | null;
   media: {
-    mp4: { url: string; quality: "HD" } | null;
-    mp3: { url: string } | null;
+    mp4: string | null;
+    mp3: string | null;
   };
 }
 
-const cache = new TtlCache<Omit<V2Response, "ms" | "cached">>(90_000);
+const cache = new TtlCache<Omit<V2Response, "ms">>(90_000);
 
 const YT_URL_RE =
   /(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/;
@@ -44,13 +39,11 @@ router.get("/v2/q", async (req: Request, res: Response) => {
 
   if (!query || !query.trim()) {
     res.status(400).json({
+      credit: "MJL",
       version: VERSION,
-      success: false,
-      creditTo: "MJL",
       ms: Date.now() - t0,
       error: "Missing query.",
       usage: "/api/v2/q?=(YouTube URL or title)",
-      note: "v2 is the fast endpoint — returns only title + download links.",
     });
     return;
   }
@@ -60,15 +53,13 @@ router.get("/v2/q", async (req: Request, res: Response) => {
   try {
     let videoId: string | null = null;
     let youtubeUrl: string;
-    let titleFromSearch: string | null = null;
 
     if (isUrl(input)) {
       videoId = extractVideoId(input);
       if (!videoId) {
         res.status(400).json({
+          credit: "MJL",
           version: VERSION,
-          success: false,
-          creditTo: "MJL",
           ms: Date.now() - t0,
           error: "Could not extract a YouTube video ID from this URL.",
           input,
@@ -77,14 +68,12 @@ router.get("/v2/q", async (req: Request, res: Response) => {
       }
       youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
     } else {
-      // Single yts() call for title + videoId — no second lookup
       const searchResult = await yts(input);
       const first = searchResult.videos[0];
       if (!first) {
         res.status(404).json({
+          credit: "MJL",
           version: VERSION,
-          success: false,
-          creditTo: "MJL",
           ms: Date.now() - t0,
           error: "No YouTube results found for this query.",
           query: input,
@@ -93,48 +82,39 @@ router.get("/v2/q", async (req: Request, res: Response) => {
       }
       videoId = first.videoId;
       youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      titleFromSearch = first.title ?? null;
     }
 
-    // Cache hit
     const hit = cache.get(videoId);
     if (hit) {
       res.setHeader("Cache-Control", "public, max-age=90");
-      res.json({ ...hit, cached: true, ms: Date.now() - t0 });
+      res.json({ ...hit, ms: Date.now() - t0 });
       return;
     }
 
-    // Only ytdown — no full yts({ videoId }) metadata call
     const dl = await ytdown(youtubeUrl);
     const dlData = (dl?.status ? dl.data : null) ?? null;
 
     const mp4Url = dlData?.video ?? dlData?.high ?? null;
     const mp3Url = dlData?.audio ?? dlData?.low ?? null;
-    const title = titleFromSearch ?? dlData?.title ?? null;
 
-    const payload: Omit<V2Response, "ms" | "cached"> = {
+    const payload: Omit<V2Response, "ms"> = {
+      credit: "MJL",
       version: VERSION,
-      success: true,
-      creditTo: "MJL",
-      video_id: videoId,
-      url: youtubeUrl,
-      title,
       media: {
-        mp4: mp4Url ? { url: mp4Url, quality: "HD" } : null,
-        mp3: mp3Url ? { url: mp3Url } : null,
+        mp4: mp4Url ?? null,
+        mp3: mp3Url ?? null,
       },
     };
 
     cache.set(videoId, payload);
     res.setHeader("Cache-Control", "public, max-age=90");
-    res.json({ ...payload, cached: false, ms: Date.now() - t0 });
+    res.json({ ...payload, ms: Date.now() - t0 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     req.log.error({ err, input }, "v2 YouTube download error");
     res.status(500).json({
+      credit: "MJL",
       version: VERSION,
-      success: false,
-      creditTo: "MJL",
       ms: Date.now() - t0,
       error: message,
       input,

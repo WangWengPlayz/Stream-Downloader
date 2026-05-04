@@ -57,6 +57,18 @@ function clean(obj: Record<string, unknown>): Record<string, unknown> {
   );
 }
 
+function resolveThumbnail(
+  videoId: string,
+  info: yts.VideoResult | null,
+  dlThumbnail?: string,
+): string {
+  // Priority: yts thumbnail → yts image → nayan thumbnail → constructed hqdefault
+  const fromYts = info?.thumbnail || info?.image || null;
+  if (fromYts) return fromYts;
+  if (dlThumbnail) return dlThumbnail;
+  return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+}
+
 router.get("/v1/q", async (req: Request, res: Response) => {
   const t0 = Date.now();
   const query = req.query[""] as string | undefined;
@@ -117,7 +129,6 @@ router.get("/v1/q", async (req: Request, res: Response) => {
       youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
     }
 
-    // Cache hit — serve instantly, ms reflects cache retrieval time
     const cached = cache.get(videoId);
     if (cached) {
       res.setHeader("Cache-Control", "public, max-age=90");
@@ -136,11 +147,13 @@ router.get("/v1/q", async (req: Request, res: Response) => {
 
     const { name: authorName, url: channelUrl } = resolveAuthor(info?.author);
 
+    const thumbnail = resolveThumbnail(videoId, info, dlData?.thumbnail);
+
     const rawInfo: Record<string, unknown> = {
       title:            info?.title ?? dlData?.title ?? null,
       author:           authorName,
       channel_url:      channelUrl,
-      thumbnail:        info?.thumbnail ?? info?.image ?? null,
+      thumbnail,
       duration:         info?.duration?.timestamp ?? null,
       duration_seconds: info?.duration?.seconds ?? null,
       views:            info?.views ?? null,
