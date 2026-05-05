@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import yts from "yt-search";
 import { TtlCache } from "../lib/cache";
 import { VERSION } from "../lib/version";
-import { increment } from "../lib/counter";
+import { increment, recordSuccess, recordError } from "../lib/counter";
 import { inferCategory } from "../lib/category";
 
 const router: IRouter = Router();
@@ -47,6 +47,11 @@ function resolveAuthor(author: yts.VideoAuthor | string | undefined): {
 router.get("/v3/q", async (req: Request, res: Response) => {
   const t0 = Date.now();
   const ApiCount = increment();
+  res.on("finish", () => {
+    if (res.statusCode >= 200 && res.statusCode < 400) recordSuccess();
+    else recordError();
+  });
+
   const query = req.query[""] as string | undefined;
 
   if (!query || !query.trim()) {

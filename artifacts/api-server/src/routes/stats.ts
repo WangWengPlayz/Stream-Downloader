@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { VERSION } from "../lib/version";
-import { getCount } from "../lib/counter";
+import { getCount, getSuccess, getError } from "../lib/counter";
 
 const router: IRouter = Router();
 
@@ -9,6 +9,8 @@ router.get("/stats", (_req, res) => {
     version: VERSION,
     creditTo: "MJL",
     ApiCount: getCount(),
+    successCount: getSuccess(),
+    errorCount: getError(),
     timestamp: new Date().toISOString(),
   });
 });

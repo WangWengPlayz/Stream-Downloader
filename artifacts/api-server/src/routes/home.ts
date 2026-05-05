@@ -461,13 +461,84 @@ function buildHtml(version: string): string {
     .faq-a-inner code{background:rgba(255,255,255,.07);color:#F1F1F1;padding:1px 6px;border-radius:4px;font-size:.88em;font-family:monospace}
     .faq-a-inner strong{color:#F1F1F1}
 
+    /* ── STATS MODAL ── */
+    .sm-overlay{position:fixed;inset:0;z-index:9997;background:rgba(0,0,0,.75);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:none;align-items:center;justify-content:center;padding:20px}
+    .sm-overlay.open{display:flex;animation:sm-fade .2s ease both}
+    @keyframes sm-fade{from{opacity:0}to{opacity:1}}
+    .sm-modal{background:rgba(13,13,13,.98);border:1px solid rgba(255,255,255,.1);border-radius:22px;padding:26px 22px 22px;width:min(360px,100%);box-shadow:0 40px 100px rgba(0,0,0,.95),0 0 0 1px rgba(255,255,255,.04);animation:sm-pop .28s cubic-bezier(.34,1.2,.64,1) both}
+    @keyframes sm-pop{from{opacity:0;transform:scale(.86) translateY(16px)}to{opacity:1;transform:none}}
+    .sm-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+    .sm-title{font-size:.84rem;font-weight:800;color:#F1F1F1;letter-spacing:.3px}
+    .sm-close{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#717171;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;font-size:.75rem;flex-shrink:0}
+    .sm-close:hover{background:rgba(255,255,255,.12);color:#F1F1F1}
+    .sm-circles{display:flex;align-items:flex-start;gap:14px;justify-content:center}
+    .sm-circle-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;flex:1;max-width:145px}
+    .sm-ring-wrap{position:relative;width:112px;height:112px}
+    .sm-ring-svg{width:112px;height:112px;transform:rotate(-90deg);display:block}
+    .sm-ring-bg{fill:none;stroke-width:9}
+    .sm-ring-arc{fill:none;stroke-width:9;stroke-linecap:round;stroke-dasharray:289;stroke-dashoffset:289;transition:stroke-dashoffset 1s cubic-bezier(.4,0,.2,1)}
+    .sm-ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+    .sm-pct{font-size:1.25rem;font-weight:900;font-family:monospace;line-height:1;letter-spacing:-1px}
+    .sm-count{font-size:.62rem;font-weight:700;color:#555;line-height:1}
+    .sm-circle-lbl{font-size:.72rem;font-weight:700;text-align:center;letter-spacing:.2px}
+    .sm-divider{width:1px;background:rgba(255,255,255,.06);align-self:stretch;margin:6px 0}
+    .sm-footer{font-size:.62rem;color:#333;text-align:center;margin-top:20px;font-family:monospace;padding-top:16px;border-top:1px solid rgba(255,255,255,.05)}
+    /* Clickable stat */
+    .stat-clickable{cursor:pointer;transition:all .2s}
+    .stat-clickable:hover{border-color:rgba(255,0,0,.28)!important;background:rgba(255,0,0,.05)!important;transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.4)}
+    .stat-clickable:active{transform:translateY(0)}
+    /* ── HOSTING BADGE ── */
+    .host-badge{margin-top:12px;display:flex;align-items:center;justify-content:center}
+    .host-pill{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:5px 15px;font-size:.68rem;font-weight:700;color:#3F3F3F;text-decoration:none;transition:all .18s;letter-spacing:.2px}
+    .host-pill:hover{background:rgba(255,255,255,.06);color:#717171;border-color:rgba(255,255,255,.12)}
+    .host-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0;box-shadow:0 0 6px currentColor}
     /* ── FOOTER ── */
-    footer{text-align:center;padding:32px 20px;color:#2a2a2a;font-size:.73rem;border-top:1px solid rgba(255,255,255,.04)}
+    footer{text-align:center;padding:32px 20px 28px;color:#2a2a2a;font-size:.73rem;border-top:1px solid rgba(255,255,255,.04)}
     footer strong{color:#3F3F3F}
     footer .tf{color:#FF0000;font-weight:800}
   </style>
 </head>
 <body>
+
+<!-- ── STATS MODAL ── -->
+<div class="sm-overlay" id="sm-overlay">
+  <div class="sm-modal" id="sm-modal">
+    <div class="sm-head">
+      <span class="sm-title">&#x1F4CA; API Call Analytics</span>
+      <button class="sm-close" onclick="closeStatsPopup()">&#x2715;</button>
+    </div>
+    <div class="sm-circles">
+      <div class="sm-circle-wrap">
+        <div class="sm-ring-wrap">
+          <svg class="sm-ring-svg" viewBox="0 0 112 112">
+            <circle class="sm-ring-bg" cx="56" cy="56" r="46" stroke="rgba(74,222,128,.12)"/>
+            <circle class="sm-ring-arc" id="sm-arc-s" cx="56" cy="56" r="46" stroke="#4ade80"/>
+          </svg>
+          <div class="sm-ring-center">
+            <span class="sm-pct" id="sm-pct-s" style="color:#4ade80">—</span>
+            <span class="sm-count" id="sm-count-s">0 calls</span>
+          </div>
+        </div>
+        <span class="sm-circle-lbl" style="color:#4ade80">&#x2713; Successful</span>
+      </div>
+      <div class="sm-divider"></div>
+      <div class="sm-circle-wrap">
+        <div class="sm-ring-wrap">
+          <svg class="sm-ring-svg" viewBox="0 0 112 112">
+            <circle class="sm-ring-bg" cx="56" cy="56" r="46" stroke="rgba(255,68,68,.12)"/>
+            <circle class="sm-ring-arc" id="sm-arc-e" cx="56" cy="56" r="46" stroke="#FF4444"/>
+          </svg>
+          <div class="sm-ring-center">
+            <span class="sm-pct" id="sm-pct-e" style="color:#FF4444">—</span>
+            <span class="sm-count" id="sm-count-e">0 calls</span>
+          </div>
+        </div>
+        <span class="sm-circle-lbl" style="color:#FF4444">&#x2715; Failed</span>
+      </div>
+    </div>
+    <div class="sm-footer" id="sm-footer">Loading&hellip;</div>
+  </div>
+</div>
 
 <!-- ── INTRO ── -->
 <div id="intro">
@@ -529,9 +600,9 @@ function buildHtml(version: string): string {
       <span class="hbadge">90s Cache</span>
     </div>
     <div class="stats-bar">
-      <div class="stat-item">
+      <div class="stat-item stat-clickable" onclick="openStatsPopup()" title="View success &amp; error breakdown">
         <span class="stat-num red" id="stat-count">—</span>
-        <span class="stat-lbl">API Calls</span>
+        <span class="stat-lbl">API Calls &#x2197;</span>
       </div>
       <div class="stat-item">
         <span class="stat-num">v${version}</span>
@@ -814,6 +885,7 @@ function buildHtml(version: string): string {
 
 <footer>
   <p>&copy; 2026 <strong>MJL</strong> &middot; <span class="tf">TubeFetch</span> <strong>v${version}</strong> &middot; For educational purposes only</p>
+  <div class="host-badge" id="host-badge"></div>
 </footer>
 
 <script>
@@ -1268,6 +1340,79 @@ async function fetchEp(n){
     setBtnDefault(n);
   }
 }
+
+/* ════════════════════════════════
+   STATS POPUP
+════════════════════════════════ */
+var SM_CIRC = 289;
+var smOpen = false;
+
+function openStatsPopup() {
+  document.getElementById('sm-overlay').classList.add('open');
+  smOpen = true;
+  loadStatsData();
+  setTimeout(function() { document.addEventListener('click', smOutside, true); }, 60);
+}
+
+function closeStatsPopup() {
+  document.getElementById('sm-overlay').classList.remove('open');
+  smOpen = false;
+  document.removeEventListener('click', smOutside, true);
+}
+
+function smOutside(e) {
+  var modal = document.getElementById('sm-modal');
+  if (modal && !modal.contains(e.target)) closeStatsPopup();
+}
+
+function loadStatsData() {
+  fetch('/api/stats').then(function(r) { return r.json(); }).then(function(d) {
+    var total = d.ApiCount || 0;
+    var s = d.successCount || 0;
+    var f = d.errorCount || 0;
+    var sPct = total > 0 ? Math.round(s / total * 100) : 0;
+    var fPct = total > 0 ? Math.round(f / total * 100) : 0;
+    var arcS = document.getElementById('sm-arc-s');
+    if (arcS) arcS.style.strokeDashoffset = SM_CIRC * (1 - sPct / 100);
+    document.getElementById('sm-pct-s').textContent = sPct + '%';
+    document.getElementById('sm-count-s').textContent = s.toLocaleString() + ' call' + (s !== 1 ? 's' : '');
+    var arcE = document.getElementById('sm-arc-e');
+    if (arcE) arcE.style.strokeDashoffset = SM_CIRC * (1 - fPct / 100);
+    document.getElementById('sm-pct-e').textContent = fPct + '%';
+    document.getElementById('sm-count-e').textContent = f.toLocaleString() + ' call' + (f !== 1 ? 's' : '');
+    document.getElementById('sm-footer').textContent = 'Total ' + total.toLocaleString() + ' API call' + (total !== 1 ? 's' : '') + ' \u00b7 ' + new Date().toLocaleTimeString();
+  }).catch(function() { document.getElementById('sm-footer').textContent = 'Failed to load stats'; });
+}
+
+/* ════════════════════════════════
+   HOSTING BADGE
+════════════════════════════════ */
+(function() {
+  var hosts = [
+    { check: function(h) { return h.endsWith('.replit.app') || h.endsWith('.repl.co') || h.includes('.replit.dev'); }, name: 'Replit', url: 'https://replit.com', color: '#F26207' },
+    { check: function(h) { return h.endsWith('.onrender.com'); }, name: 'Render', url: 'https://render.com', color: '#46E3B7' },
+    { check: function(h) { return h.endsWith('.vercel.app'); }, name: 'Vercel', url: 'https://vercel.com', color: '#F1F1F1' },
+    { check: function(h) { return h.endsWith('.railway.app'); }, name: 'Railway', url: 'https://railway.app', color: '#B200FF' },
+    { check: function(h) { return h.endsWith('.fly.dev'); }, name: 'Fly.io', url: 'https://fly.io', color: '#8B5CF6' },
+    { check: function(h) { return h.endsWith('.herokuapp.com'); }, name: 'Heroku', url: 'https://heroku.com', color: '#430098' },
+    { check: function(h) { return h.endsWith('.koyeb.app'); }, name: 'Koyeb', url: 'https://koyeb.com', color: '#2563EB' },
+    { check: function(h) { return h.endsWith('.netlify.app'); }, name: 'Netlify', url: 'https://netlify.com', color: '#00C7B7' },
+    { check: function(h) { return h === 'localhost' || h === '127.0.0.1' || h.startsWith('192.168.'); }, name: 'Local Dev', url: '', color: '#3F3F3F' },
+  ];
+  var h = window.location.hostname;
+  var found = null;
+  for (var i = 0; i < hosts.length; i++) { if (hosts[i].check(h)) { found = hosts[i]; break; } }
+  if (!found && h) found = { name: h, url: '', color: '#3F3F3F' };
+  if (!found) return;
+  var badge = document.getElementById('host-badge');
+  if (!badge) return;
+  var dot = '<span class="host-dot" style="background:' + found.color + ';box-shadow:0 0 6px ' + found.color + '40"></span>';
+  if (found.url) {
+    badge.innerHTML = '<a class="host-pill" href="' + found.url + '" target="_blank" rel="noopener">' + dot + 'Hosted on ' + found.name + ' &#x2197;</a>';
+  } else {
+    badge.innerHTML = '<span class="host-pill">' + dot + (found.name === 'Local Dev' ? 'Running Locally' : found.name) + '</span>';
+  }
+})();
 </script>
 </body>
 </html>`;
