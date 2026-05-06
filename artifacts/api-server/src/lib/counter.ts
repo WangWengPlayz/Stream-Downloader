@@ -1,79 +1,111 @@
-import { MongoClient } from "mongodb";
+import { MongoClient, Collection } from "mongodb";
 
+/* ── Connection state ─────────────────────────────────────── */
+type MongoState = "idle" | "connecting" | "connected" | "no-uri" | "failed";
+
+let _state: MongoState = "idle";
+let _col: Collection<{ _id: string; value: number }> | null = null;
+let _connectPromise: Promise<void> | null = null;
+
+/* ── In-memory fallback counters ─────────────────────────── */
+let _localCount = 0;
 let _success = 0;
 let _error = 0;
 
-let client: MongoClient | null = null;
-let dbReady = false;
+/* ── MongoDB connection ───────────────────────────────────── */
+async function doConnect(): Promise<void> {
+  const uri = (process.env["MONGODB_URI"] ?? "").trim();
 
-async function getCollection() {
-  if (!dbReady) {
-    const uri = process.env["MONGODB_URI"];
-    if (!uri) return null;
-    try {
-      client = new MongoClient(uri, { serverSelectionTimeoutMS: 4000 });
-      await client.connect();
-      dbReady = true;
-    } catch {
-      client = null;
-      return null;
-    }
+  if (!uri) {
+    _state = "no-uri";
+    console.log(
+      "[TubeFetch] ⚠  MONGODB_URI is not set — ApiCount is in-memory only (resets on restart)",
+    );
+    return;
   }
-  if (!client) return null;
-  return client.db("tubefetch").collection<{ _id: string; value: number }>("counters");
+
+  _state = "connecting";
+  console.log("[TubeFetch] 🔄 Connecting to MongoDB...");
+
+  try {
+    const client = new MongoClient(uri, {
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 5000,
+    });
+
+    await client.connect();
+
+    const col = client
+      .db("tubefetch")
+      .collection<{ _id: string; value: number }>("counters");
+
+    // Ensure the counter document exists
+    await col.updateOne(
+      { _id: "apiCount" },
+      { $setOnInsert: { value: 0 } },
+      { upsert: true },
+    );
+
+    _col = col;
+    _state = "connected";
+    console.log(
+      "[TubeFetch] ✅ Successfully connected to MongoDB — ApiCount is now persistent",
+    );
+  } catch (err) {
+    _state = "failed";
+    _col = null;
+    console.error(
+      "[TubeFetch] ❌ MongoDB connection failed:",
+      (err as Error).message,
+    );
+    console.log(
+      "[TubeFetch] ⚠  Falling back to in-memory ApiCount (not persistent)",
+    );
+  }
 }
 
-async function mongoIncrement(): Promise<number> {
+function ensureConnected(): Promise<void> {
+  if (_state === "idle") {
+    _connectPromise = doConnect();
+  }
+  return _connectPromise ?? Promise.resolve();
+}
+
+/* Eagerly connect at module load so logs appear at startup */
+ensureConnected();
+
+/* ── Public API ───────────────────────────────────────────── */
+export async function increment(): Promise<number> {
+  _localCount++;
+  await ensureConnected();
+  if (!_col) return _localCount;
   try {
-    const col = await getCollection();
-    if (!col) return 0;
-    const doc = await col.findOneAndUpdate(
+    const doc = await _col.findOneAndUpdate(
       { _id: "apiCount" },
       { $inc: { value: 1 } },
       { upsert: true, returnDocument: "after" },
     );
-    return doc?.value ?? 1;
-  } catch {
-    return 0;
+    return doc?.value ?? _localCount;
+  } catch (err) {
+    console.error("[TubeFetch] MongoDB increment error:", (err as Error).message);
+    return _localCount;
   }
-}
-
-async function mongoGetCount(): Promise<number> {
-  try {
-    const col = await getCollection();
-    if (!col) return 0;
-    const doc = await col.findOne({ _id: "apiCount" });
-    return doc?.value ?? 0;
-  } catch {
-    return 0;
-  }
-}
-
-let _localCount = 0;
-
-export async function increment(): Promise<number> {
-  _localCount++;
-  const remote = await mongoIncrement();
-  return remote > 0 ? remote : _localCount;
-}
-
-export function recordSuccess(): void {
-  _success++;
-}
-
-export function recordError(): void {
-  _error++;
 }
 
 export async function getCount(): Promise<number> {
-  const remote = await mongoGetCount();
-  return remote > 0 ? remote : _localCount;
+  await ensureConnected();
+  if (!_col) return _localCount;
+  try {
+    const doc = await _col.findOne({ _id: "apiCount" });
+    return doc?.value ?? _localCount;
+  } catch {
+    return _localCount;
+  }
 }
 
-export function getSuccess(): number {
-  return _success;
-}
+export function recordSuccess(): void { _success++; }
+export function recordError(): void   { _error++;   }
+export function getSuccess(): number  { return _success; }
+export function getError():   number  { return _error;   }
 
-export function getError(): number {
-  return _error;
-}
+export function getMongoStatus(): MongoState { return _state; }

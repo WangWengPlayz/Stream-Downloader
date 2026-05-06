@@ -490,6 +490,11 @@ function buildHtml(version: string): string {
     .stat-clickable{cursor:pointer;transition:all .2s}
     .stat-clickable:hover{border-color:rgba(255,0,0,.28)!important;background:rgba(255,0,0,.05)!important;transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.4)}
     .stat-clickable:active{transform:translateY(0)}
+    /* MongoDB error state on stat card */
+    .stat-mongo-err{border-color:rgba(255,68,68,.45)!important;background:rgba(255,30,30,.06)!important;animation:mongo-pulse 2.5s ease infinite}
+    @keyframes mongo-pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,68,68,.0)}50%{box-shadow:0 0 10px 2px rgba(255,68,68,.15)}}
+    .stat-mongo-err #stat-count{color:#FF4444!important}
+    .stat-mongo-err .stat-lbl{color:#FF4444!important}
     /* ── HOSTING BADGE ── */
     .host-badge{margin-top:12px;display:flex;align-items:center;justify-content:center}
     .host-pill{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:5px 15px;font-size:.68rem;font-weight:700;color:#3F3F3F;text-decoration:none;transition:all .18s;letter-spacing:.2px}
@@ -603,7 +608,7 @@ function buildHtml(version: string): string {
       <span class="hbadge">90s Cache</span>
     </div>
     <div class="stats-bar">
-      <div class="stat-item stat-clickable" onclick="openStatsPopup()" title="View success &amp; error breakdown">
+      <div class="stat-item stat-clickable" id="stat-api-card" onclick="openStatsPopup()" title="View success &amp; error breakdown">
         <span class="stat-num red" id="stat-count">—</span>
         <span class="stat-lbl">API Calls &#x2197;</span>
       </div>
@@ -915,8 +920,27 @@ function buildHtml(version: string): string {
 function fetchStats(){
   fetch('/api/stats').then(function(r){ return r.json(); }).then(function(d){
     var el = document.getElementById('stat-count');
-    if(el && typeof d.ApiCount === 'number') el.textContent = d.ApiCount.toLocaleString();
-  }).catch(function(){});
+    var card = document.getElementById('stat-api-card');
+    if(!el || !card) return;
+
+    var connected = d.mongoConnected !== false;
+
+    if(connected){
+      /* Normal state */
+      if(typeof d.ApiCount === 'number') el.textContent = d.ApiCount.toLocaleString();
+      card.classList.remove('stat-mongo-err');
+      card.title = 'View success & error breakdown';
+    } else {
+      /* MongoDB not connected — show error state */
+      el.textContent = '!';
+      card.classList.add('stat-mongo-err');
+      var status = d.mongoStatus || 'unknown';
+      card.title = 'MongoDB not connected (' + status + ') — ApiCount is in-memory only';
+    }
+  }).catch(function(){
+    var card = document.getElementById('stat-api-card');
+    if(card) card.classList.add('stat-mongo-err');
+  });
 }
 setInterval(fetchStats, 5000);
 
