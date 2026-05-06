@@ -103,15 +103,24 @@ export async function increment(): Promise<number> {
   }
 }
 
-export async function getCount(): Promise<number> {
+export async function getAllCounts(): Promise<{ total: number; successCount: number; errorCount: number }> {
   await ensureConnected();
-  if (!_col) return _localCount;
+  if (!_col) return { total: _localCount, successCount: _localSuccess, errorCount: _localError };
   try {
     const doc = await _col.findOne({ _id: "apiCount" });
-    return doc?.value ?? _localCount;
+    return {
+      total:        doc?.value        ?? _localCount,
+      successCount: doc?.successCount ?? _localSuccess,
+      errorCount:   doc?.errorCount   ?? _localError,
+    };
   } catch {
-    return _localCount;
+    return { total: _localCount, successCount: _localSuccess, errorCount: _localError };
   }
+}
+
+export async function getCount(): Promise<number> {
+  const { total } = await getAllCounts();
+  return total;
 }
 
 export function recordSuccess(): void {
@@ -132,28 +141,6 @@ export function recordError(): void {
     .catch((err) =>
       console.error("[TubeFetch] MongoDB recordError error:", (err as Error).message),
     );
-}
-
-export async function getSuccess(): Promise<number> {
-  await ensureConnected();
-  if (!_col) return _localSuccess;
-  try {
-    const doc = await _col.findOne({ _id: "apiCount" });
-    return doc?.successCount ?? _localSuccess;
-  } catch {
-    return _localSuccess;
-  }
-}
-
-export async function getError(): Promise<number> {
-  await ensureConnected();
-  if (!_col) return _localError;
-  try {
-    const doc = await _col.findOne({ _id: "apiCount" });
-    return doc?.errorCount ?? _localError;
-  } catch {
-    return _localError;
-  }
 }
 
 export function getMongoStatus(): MongoState { return _state; }

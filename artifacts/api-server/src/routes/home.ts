@@ -1413,9 +1413,9 @@ function renderStatsData(d) {
   var s = d.successCount || 0;
   var f = d.errorCount || 0;
   var tracked = s + f;
-  var base = tracked > 0 ? tracked : total;
-  var sPct = base > 0 ? Math.round(s / base * 100) : 0;
-  var fPct = base > 0 ? Math.round(f / base * 100) : 0;
+  var base = tracked > 0 ? tracked : (total > 0 ? total : 1);
+  var sPct = Math.min(100, Math.round(s / base * 100));
+  var fPct = Math.min(100, Math.round(f / base * 100));
   var arcS = document.getElementById('sm-arc-s');
   if (arcS) arcS.style.strokeDashoffset = SM_CIRC * (1 - sPct / 100);
   document.getElementById('sm-pct-s').textContent = sPct + '%';
@@ -1425,12 +1425,6 @@ function renderStatsData(d) {
   document.getElementById('sm-pct-e').textContent = fPct + '%';
   document.getElementById('sm-count-e').textContent = f.toLocaleString() + ' call' + (f !== 1 ? 's' : '');
   document.getElementById('sm-footer').textContent = 'Total ' + total.toLocaleString() + ' API call' + (total !== 1 ? 's' : '') + ' \u00b7 ' + new Date().toLocaleTimeString();
-}
-
-function loadStatsData() {
-  fetch('/api/stats').then(function(r) { return r.json(); }).then(function(d) {
-    renderStatsData(d);
-  }).catch(function() { document.getElementById('sm-footer').textContent = 'Failed to load stats'; });
 }
 
 /* ════════════════════════════════
