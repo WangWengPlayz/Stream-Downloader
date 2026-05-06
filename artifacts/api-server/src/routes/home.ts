@@ -5,9 +5,21 @@ const router: IRouter = Router();
 
 const CHANGELOG: { version: string; date: string; tag: string; notes: string[] }[] = [
   {
+    version: "1.0.9",
+    date: "2026-05-06",
+    tag: "current",
+    notes: [
+      "MongoDB persistence — ApiCount survives server restarts via Atlas (in-memory fallback if unavailable)",
+      "Connection console logs — server prints 🔄 Connecting, ✅ Connected, ❌ Failed, or ⚠ No URI at startup",
+      "API Calls stat card shows a red error UI when MongoDB is not connected",
+      "/api/stats now exposes mongoConnected and mongoStatus fields",
+      "Fixed /api/uptime and /api/healthz — no longer increment ApiCount",
+    ],
+  },
+  {
     version: "1.0.8",
     date: "2026-05-05",
-    tag: "current",
+    tag: "",
     notes: [
       "Global ApiCount — every response now includes the total request counter",
       "Live stats bar in hero: total calls, version, cache TTL",
