@@ -3,14 +3,21 @@ import { MongoClient, Collection } from "mongodb";
 /* ── Connection state ─────────────────────────────────────── */
 type MongoState = "idle" | "connecting" | "connected" | "no-uri" | "failed";
 
+interface CounterDoc {
+  _id: string;
+  value: number;
+  successCount: number;
+  errorCount: number;
+}
+
 let _state: MongoState = "idle";
-let _col: Collection<{ _id: string; value: number }> | null = null;
+let _col: Collection<CounterDoc> | null = null;
 let _connectPromise: Promise<void> | null = null;
 
 /* ── In-memory fallback counters ─────────────────────────── */
 let _localCount = 0;
-let _success = 0;
-let _error = 0;
+let _localSuccess = 0;
+let _localError = 0;
 
 /* ── MongoDB connection ───────────────────────────────────── */
 async function doConnect(): Promise<void> {
@@ -35,15 +42,19 @@ async function doConnect(): Promise<void> {
 
     await client.connect();
 
-    const col = client
-      .db("tubefetch")
-      .collection<{ _id: string; value: number }>("counters");
+    const col = client.db("tubefetch").collection<CounterDoc>("counters");
 
-    // Ensure the counter document exists
+    /* Ensure the counter document exists with all three fields */
     await col.updateOne(
       { _id: "apiCount" },
-      { $setOnInsert: { value: 0 } },
+      { $setOnInsert: { value: 0, successCount: 0, errorCount: 0 } },
       { upsert: true },
+    );
+
+    /* Migrate older documents that may lack successCount / errorCount */
+    await col.updateOne(
+      { _id: "apiCount", successCount: { $exists: false } },
+      { $set: { successCount: 0, errorCount: 0 } },
     );
 
     _col = col;
@@ -103,9 +114,46 @@ export async function getCount(): Promise<number> {
   }
 }
 
-export function recordSuccess(): void { _success++; }
-export function recordError(): void   { _error++;   }
-export function getSuccess(): number  { return _success; }
-export function getError():   number  { return _error;   }
+export function recordSuccess(): void {
+  _localSuccess++;
+  if (!_col) return;
+  _col
+    .updateOne({ _id: "apiCount" }, { $inc: { successCount: 1 } }, { upsert: true })
+    .catch((err) =>
+      console.error("[TubeFetch] MongoDB recordSuccess error:", (err as Error).message),
+    );
+}
+
+export function recordError(): void {
+  _localError++;
+  if (!_col) return;
+  _col
+    .updateOne({ _id: "apiCount" }, { $inc: { errorCount: 1 } }, { upsert: true })
+    .catch((err) =>
+      console.error("[TubeFetch] MongoDB recordError error:", (err as Error).message),
+    );
+}
+
+export async function getSuccess(): Promise<number> {
+  await ensureConnected();
+  if (!_col) return _localSuccess;
+  try {
+    const doc = await _col.findOne({ _id: "apiCount" });
+    return doc?.successCount ?? _localSuccess;
+  } catch {
+    return _localSuccess;
+  }
+}
+
+export async function getError(): Promise<number> {
+  await ensureConnected();
+  if (!_col) return _localError;
+  try {
+    const doc = await _col.findOne({ _id: "apiCount" });
+    return doc?.errorCount ?? _localError;
+  } catch {
+    return _localError;
+  }
+}
 
 export function getMongoStatus(): MongoState { return _state; }

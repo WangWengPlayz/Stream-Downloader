@@ -6,12 +6,17 @@ const router: IRouter = Router();
 
 router.get("/stats", async (_req, res) => {
   const mongoStatus = getMongoStatus();
+  const [ApiCount, successCount, errorCount] = await Promise.all([
+    getCount(),
+    getSuccess(),
+    getError(),
+  ]);
   res.json({
     version: VERSION,
     creditTo: "MJL",
-    ApiCount: await getCount(),
-    successCount: getSuccess(),
-    errorCount: getError(),
+    ApiCount,
+    successCount,
+    errorCount,
     mongoConnected: mongoStatus === "connected",
     mongoStatus,
     timestamp: new Date().toISOString(),

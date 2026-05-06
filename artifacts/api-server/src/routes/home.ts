@@ -1387,10 +1387,14 @@ var SM_CIRC = 289;
 var smOpen = false;
 
 function openStatsPopup() {
-  document.getElementById('sm-overlay').classList.add('open');
-  smOpen = true;
-  loadStatsData();
-  setTimeout(function() { document.addEventListener('click', smOutside, true); }, 60);
+  fetch('/api/stats').then(function(r) { return r.json(); }).then(function(d) {
+    var total = d.ApiCount || 0;
+    if (total === 0) return;
+    document.getElementById('sm-overlay').classList.add('open');
+    smOpen = true;
+    renderStatsData(d);
+    setTimeout(function() { document.addEventListener('click', smOutside, true); }, 60);
+  }).catch(function() {});
 }
 
 function closeStatsPopup() {
@@ -1404,22 +1408,28 @@ function smOutside(e) {
   if (modal && !modal.contains(e.target)) closeStatsPopup();
 }
 
+function renderStatsData(d) {
+  var total = d.ApiCount || 0;
+  var s = d.successCount || 0;
+  var f = d.errorCount || 0;
+  var tracked = s + f;
+  var base = tracked > 0 ? tracked : total;
+  var sPct = base > 0 ? Math.round(s / base * 100) : 0;
+  var fPct = base > 0 ? Math.round(f / base * 100) : 0;
+  var arcS = document.getElementById('sm-arc-s');
+  if (arcS) arcS.style.strokeDashoffset = SM_CIRC * (1 - sPct / 100);
+  document.getElementById('sm-pct-s').textContent = sPct + '%';
+  document.getElementById('sm-count-s').textContent = s.toLocaleString() + ' call' + (s !== 1 ? 's' : '');
+  var arcE = document.getElementById('sm-arc-e');
+  if (arcE) arcE.style.strokeDashoffset = SM_CIRC * (1 - fPct / 100);
+  document.getElementById('sm-pct-e').textContent = fPct + '%';
+  document.getElementById('sm-count-e').textContent = f.toLocaleString() + ' call' + (f !== 1 ? 's' : '');
+  document.getElementById('sm-footer').textContent = 'Total ' + total.toLocaleString() + ' API call' + (total !== 1 ? 's' : '') + ' \u00b7 ' + new Date().toLocaleTimeString();
+}
+
 function loadStatsData() {
   fetch('/api/stats').then(function(r) { return r.json(); }).then(function(d) {
-    var total = d.ApiCount || 0;
-    var s = d.successCount || 0;
-    var f = d.errorCount || 0;
-    var sPct = total > 0 ? Math.round(s / total * 100) : 0;
-    var fPct = total > 0 ? Math.round(f / total * 100) : 0;
-    var arcS = document.getElementById('sm-arc-s');
-    if (arcS) arcS.style.strokeDashoffset = SM_CIRC * (1 - sPct / 100);
-    document.getElementById('sm-pct-s').textContent = sPct + '%';
-    document.getElementById('sm-count-s').textContent = s.toLocaleString() + ' call' + (s !== 1 ? 's' : '');
-    var arcE = document.getElementById('sm-arc-e');
-    if (arcE) arcE.style.strokeDashoffset = SM_CIRC * (1 - fPct / 100);
-    document.getElementById('sm-pct-e').textContent = fPct + '%';
-    document.getElementById('sm-count-e').textContent = f.toLocaleString() + ' call' + (f !== 1 ? 's' : '');
-    document.getElementById('sm-footer').textContent = 'Total ' + total.toLocaleString() + ' API call' + (total !== 1 ? 's' : '') + ' \u00b7 ' + new Date().toLocaleTimeString();
+    renderStatsData(d);
   }).catch(function() { document.getElementById('sm-footer').textContent = 'Failed to load stats'; });
 }
 
