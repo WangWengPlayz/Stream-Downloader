@@ -38,14 +38,11 @@ function isUrl(input: string): boolean {
 router.get("/v2/q", async (req: Request, res: Response) => {
   const t0 = Date.now();
   const ApiCount = await increment();
-  res.on("finish", () => {
-    if (res.statusCode >= 200 && res.statusCode < 400) recordSuccess();
-    else recordError();
-  });
 
   const query = req.query[""] as string | undefined;
 
   if (!query || !query.trim()) {
+    recordError();
     res.status(400).json({
       credit: "MJL",
       version: VERSION,
@@ -66,6 +63,7 @@ router.get("/v2/q", async (req: Request, res: Response) => {
     if (isUrl(input)) {
       videoId = extractVideoId(input);
       if (!videoId) {
+        recordError();
         res.status(400).json({
           credit: "MJL",
           version: VERSION,
@@ -81,6 +79,7 @@ router.get("/v2/q", async (req: Request, res: Response) => {
       const searchResult = await yts(input);
       const first = searchResult.videos[0];
       if (!first) {
+        recordError();
         res.status(404).json({
           credit: "MJL",
           version: VERSION,
@@ -97,6 +96,7 @@ router.get("/v2/q", async (req: Request, res: Response) => {
 
     const hit = cache.get(videoId);
     if (hit) {
+      recordSuccess();
       res.setHeader("Cache-Control", "public, max-age=90");
       res.json({ ...hit, ApiCount, ms: Date.now() - t0 });
       return;
@@ -118,11 +118,13 @@ router.get("/v2/q", async (req: Request, res: Response) => {
     };
 
     cache.set(videoId, payload);
+    recordSuccess();
     res.setHeader("Cache-Control", "public, max-age=90");
     res.json({ ...payload, ApiCount, ms: Date.now() - t0 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     req.log.error({ err, input }, "v2 YouTube download error");
+    recordError();
     res.status(500).json({
       credit: "MJL",
       version: VERSION,

@@ -47,14 +47,11 @@ function resolveAuthor(author: yts.VideoAuthor | string | undefined): {
 router.get("/v3/q", async (req: Request, res: Response) => {
   const t0 = Date.now();
   const ApiCount = await increment();
-  res.on("finish", () => {
-    if (res.statusCode >= 200 && res.statusCode < 400) recordSuccess();
-    else recordError();
-  });
 
   const query = req.query[""] as string | undefined;
 
   if (!query || !query.trim()) {
+    recordError();
     res.status(400).json({
       credit: "MJL",
       version: VERSION,
@@ -71,6 +68,7 @@ router.get("/v3/q", async (req: Request, res: Response) => {
 
   const cached = cache.get(input);
   if (cached) {
+    recordSuccess();
     res.setHeader("Cache-Control", "public, max-age=90");
     res.json({ ...cached, ApiCount, ms: Date.now() - t0 });
     return;
@@ -112,11 +110,13 @@ router.get("/v3/q", async (req: Request, res: Response) => {
     };
 
     cache.set(input, payload);
+    recordSuccess();
     res.setHeader("Cache-Control", "public, max-age=90");
     res.json({ ...payload, ApiCount, ms: Date.now() - t0 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     req.log.error({ err, input }, "v3 search error");
+    recordError();
     res.status(500).json({
       credit: "MJL",
       version: VERSION,
